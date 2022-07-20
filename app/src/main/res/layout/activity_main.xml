@@ -11,6 +11,66 @@
         android:name="com.google.android.gms.maps.SupportMapFragment"
         android:layout_width="match_parent"
         android:layout_height="match_parent"
+        android:layout_marginTop="50dp"
         tools:context=".MapsActivity" />
+
+    <LinearLayout
+        android:layout_width="match_parent"
+        android:layout_height="50dp"
+        android:orientation="horizontal"
+        android:background="@color/blue_500"
+        android:gravity="center_vertical"
+        tools:ignore="MissingConstraints">
+
+        <ImageView
+            android:layout_width="50dp"
+            android:layout_height="match_parent"
+            android:src="@drawable/fence4" />
+        <TextView
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text="Geofence"
+            android:textSize="22sp"
+            android:textColor="@color/white"/>
+    </LinearLayout>
+
+    <SeekBar
+        android:id="@+id/Range_Setting"
+        android:layout_width="0dp"
+        android:layout_height="wrap_content"
+        android:layout_marginBottom="20dp"
+        android:background="@color/blue_500"
+        android:thumb="@drawable/seek_bar_thumb"
+        android:progressDrawable="@drawable/seek_bar_progress"
+        app:layout_constraintBottom_toTopOf="@+id/Button_Add"
+        app:layout_constraintStart_toStartOf="@+id/Button_Add"
+        app:layout_constraintEnd_toEndOf="@+id/Button_Remove" />
+
+    <Button
+        android:id="@+id/Button_Remove"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:text="Remove"
+        app:layout_constraintRight_toRightOf="parent"
+        app:layout_constraintBottom_toBottomOf="parent"
+        app:layout_constraintLeft_toRightOf="@+id/Button_Add"
+        android:layout_marginBottom="30dp" />
+
+    <Button
+        android:id="@+id/Button_Add"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:text="Add"
+        app:layout_constraintLeft_toLeftOf="parent"
+        app:layout_constraintBottom_toBottomOf="parent"
+        app:layout_constraintRight_toLeftOf="@id/Button_Remove"
+        android:layout_marginBottom="30dp" />
+
+
+    <androidx.constraintlayout.widget.Group
+        android:id="@+id/place_designation"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        app:constraint_referenced_ids="Button_Add,Range_Setting,Button_Remove" />
 
 </androidx.constraintlayout.widget.ConstraintLayout>
