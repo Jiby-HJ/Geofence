@@ -23,6 +23,8 @@
             android:name="com.google.android.geo.API_KEY"
             android:value="AIzaSyCoZMb8geWWyD3O7FhxqJuthJxbcSMGolw" />
 
+        <receiver android:name=".GeofenceReceiver"/>
+
         <activity
             android:name=".MainActivity"
             android:exported="true">

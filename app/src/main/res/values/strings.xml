@@ -1,3 +1,7 @@
 <resources>
     <string name="app_name">Geofence</string>
+    <string name="geofence_enabled">지오펜스 활성화</string>
+    <string name="geofence_error">지오펜스 실패</string>
+    <string name="enter_geofence">지오펜스 입장</string>
+    <string name="exit_geofence">지오펜스 퇴장</string>
 </resources>

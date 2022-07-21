@@ -6,29 +6,40 @@ import android.app.AlertDialog
 import android.content.DialogInterface
 import android.content.pm.PackageManager
 import android.location.Location
+import android.os.Build
 import android.os.Bundle
 import android.util.Log
+import android.view.Gravity
+import android.view.LayoutInflater
 import android.view.View
+import android.widget.SeekBar
+import android.widget.Toast
 import androidx.appcompat.app.AppCompatActivity
 import androidx.core.app.ActivityCompat
 import androidx.core.content.ContextCompat
 import com.google.android.gms.location.FusedLocationProviderClient
+import com.google.android.gms.location.Geofence
+import com.google.android.gms.location.GeofencingClient
 import com.google.android.gms.location.LocationServices
 import com.google.android.gms.maps.CameraUpdateFactory
 import com.google.android.gms.maps.GoogleMap
 import com.google.android.gms.maps.OnMapReadyCallback
 import com.google.android.gms.maps.SupportMapFragment
 import com.google.android.gms.maps.model.CameraPosition
+import com.google.android.gms.maps.model.CircleOptions
 import com.google.android.gms.maps.model.LatLng
-import com.google.android.gms.maps.model.Marker
 import com.google.android.gms.maps.model.MarkerOptions
 import com.google.android.libraries.places.api.Places
 import com.google.android.libraries.places.api.model.Place
 import com.google.android.libraries.places.api.net.FindCurrentPlaceRequest
 import com.google.android.libraries.places.api.net.PlacesClient
+import com.jun.geofence.databinding.ActivityMainBinding
 
 
 class MainActivity : AppCompatActivity(), OnMapReadyCallback {
+
+    private var mainBinding: ActivityMainBinding? = null
+
     private var map: GoogleMap? = null
     private var cameraPosition: CameraPosition? = null
 
@@ -43,17 +54,20 @@ class MainActivity : AppCompatActivity(), OnMapReadyCallback {
     private val defaultLocation = LatLng(35.142, 126.93)
     private var locationPermissionGranted = false
 
-    // The geographical location where the device is currently located. That is, the last-known
-    // location retrieved by the Fused Location Provider.
+    // 장치가 현재 위치한 지리적 위치. 즉, 융합 위치 제공자가 검색한 마지막으로 알려진 위치
     private var lastKnownLocation: Location? = null
     private var likelyPlaceNames: Array<String?> = arrayOfNulls(0)
     private var likelyPlaceAddresses: Array<String?> = arrayOfNulls(0)
     private var likelyPlaceAttributions: Array<List<*>?> = arrayOfNulls(0)
     private var likelyPlaceLatLngs: Array<LatLng?> = arrayOfNulls(0)
 
+
+    private var geofenceLatLng: LatLng = defaultLocation
+    private var geofenceRange = 50.0
+
     companion object {
         private val TAG = MainActivity::class.java.simpleName
-        private const val DEFAULT_ZOOM = 15
+        private const val DEFAULT_ZOOM = 16
         private const val PERMISSIONS_REQUEST_ACCESS_FINE_LOCATION = 1
 
         // 활동 상태를 저장하기 위한 키
@@ -64,8 +78,18 @@ class MainActivity : AppCompatActivity(), OnMapReadyCallback {
         private const val M_MAX_ENTRIES = 5
     }
 
+    lateinit var geofencingClient: GeofencingClient
+    private var callbacks: Callbacks? = null
+    interface Callbacks {
+        fun geofenceRequest(arrayList: ArrayList<Geofence>)
+    }
+
+    /**
+     * ---------------------------------------------------------------------------------------------------
+     */
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+        mainBinding = ActivityMainBinding.inflate(LayoutInflater.from(this))
 
         // 저장된 인스턴스 상태에서 위치 및 카메라 위치를 검색
         if (savedInstanceState != null) {
@@ -73,20 +97,32 @@ class MainActivity : AppCompatActivity(), OnMapReadyCallback {
             cameraPosition = savedInstanceState.getParcelable(KEY_CAMERA_POSITION)
         }
 
-        setContentView(R.layout.activity_main)
+        setContentView(mainBinding?.root)
 
         // PlacesClient 생성
         Places.initialize(applicationContext, "AIzaSyCoZMb8geWWyD3O7FhxqJuthJxbcSMGolw")
         placesClient = Places.createClient(this)
 
-        // Construct a FusedLocationProviderClient.
+        // FusedLocationProviderClient 생성
         fusedLocationProviderClient = LocationServices.getFusedLocationProviderClient(this)
+
+        callbacks = this.callbacks
+        geofencingClient = LocationServices.getGeofencingClient(this)
 
         // Build the map.
         val mapFragment = supportFragmentManager
             .findFragmentById(R.id.map) as SupportMapFragment?
         mapFragment?.getMapAsync(this)
+        listener()
     }
+    /**
+     * ---------------------------------------------------------------------------------------------------
+     */
+
+
+
+
+
 
     /**
      * Saves the state of the map when the activity is paused.
@@ -104,30 +140,108 @@ class MainActivity : AppCompatActivity(), OnMapReadyCallback {
     // 지도 조작
     // 지도를 사용할 준비가 되면 실행
     override fun onMapReady(map: GoogleMap) {
-        this.map = map
-
-        // Use a custom info window adapter to handle multiple lines of text in the
-        // info window contents.
-        this.map?.setInfoWindowAdapter(object : GoogleMap.InfoWindowAdapter {
-            override fun getInfoContents(p0: Marker): View? {
-                TODO("Not yet implemented")
-            }
-
-            // Return null here, so that getInfoContents() is called next.
-            override fun getInfoWindow(arg0: Marker): View? {
-                return null
-            }
-        })
-
         // Prompt the user for permission.
         getLocationPermission()
+        // Get the current location of the device and set the position of the map.
+        getDeviceLocation()
+
+        // 지도 클릭 조작
+        this.map = map
+        this.map?.setOnMapClickListener {
+            if (lastKnownLocation != null) {
+                geofenceLatLng = it
+                printGeofenceCircle()
+                mainBinding?.placeDesignation?.visibility = View.VISIBLE
+            }
+        }
 
         // Turn on the My Location layer and the related control on the map.
         updateLocationUI()
-
-        // Get the current location of the device and set the position of the map.
-        getDeviceLocation()
     }
+
+    // 지오펜스 출력
+    private fun printGeofenceCircle() {
+        map?.let {
+            it.clear()
+            it.addCircle(
+                CircleOptions()
+                    .center(geofenceLatLng)
+                    .radius(geofenceRange)
+                    .strokeWidth(0f)
+                    .fillColor(0x55003e8d)
+            )
+        }
+    }
+
+    // 리스너 활성화
+    private fun listener() {
+        mainBinding?.let {
+            it.RangeSetting.max = 1000
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+                it.RangeSetting.min = 50
+            }
+            it.RangeSetting.setOnSeekBarChangeListener(object : SeekBar.OnSeekBarChangeListener {
+                override fun onProgressChanged(
+                    seekBar: SeekBar?,
+                    progress: Int,
+                    fromUser: Boolean
+                ) {
+                    geofenceRange = progress.toDouble()
+                    printGeofenceCircle()
+                }
+                override fun onStartTrackingTouch(seekBar: SeekBar?) {
+                }
+                override fun onStopTrackingTouch(seekBar: SeekBar?) {
+                    printShortToast(geofenceRange.toString())
+                }
+            })
+
+            //Remove button 동작
+            it.ButtonRemove.setOnClickListener { _ ->
+                map?.clear()
+                it.placeDesignation.visibility = View.GONE
+            }
+
+            //Add Button 동작
+            it.ButtonAdd.setOnClickListener { _ ->
+                createGeoFence(geofenceLatLng,geofenceRange.toFloat())
+                it.placeDesignation.visibility = View.GONE
+            }
+        }
+    }
+
+    private fun printShortToast(message: String) {
+        val toast = Toast.makeText(applicationContext, message, Toast.LENGTH_SHORT)
+        toast.setGravity(Gravity.CENTER,Gravity.CENTER_HORIZONTAL,Gravity.CENTER_VERTICAL)
+        toast.show()
+    }
+    private fun printLongToast(message: String) {
+        Toast.makeText(applicationContext, message, Toast.LENGTH_LONG).show()
+    }
+
+
+    fun createGeoFence(latlng: LatLng,radius:Float) {
+        val geofenceList = arrayListOf<Geofence>()
+        geofenceList.add(
+            Geofence.Builder()
+                // Set the request ID of the geofence. This is a string to identify this
+                // geofence.
+                .setRequestId("1")
+                // Set the circular region of this geofence.
+                .setCircularRegion(
+                    latlng.latitude,
+                    latlng.longitude,
+                    radius
+                )
+                // expiration duration of the geofence. It never Expire
+                .setExpirationDuration(Geofence.NEVER_EXPIRE)
+                .setTransitionTypes(Geofence.GEOFENCE_TRANSITION_ENTER or Geofence.GEOFENCE_TRANSITION_EXIT)
+                // Create the geofence.
+                .build()
+        )
+        callbacks?.geofenceRequest(geofenceList)
+    }
+
 
     /**
      * Gets the current location of the device, and positions the map's camera.
@@ -135,8 +249,7 @@ class MainActivity : AppCompatActivity(), OnMapReadyCallback {
     @SuppressLint("MissingPermission")
     private fun getDeviceLocation() {
         /*
-         * Get the best and most recent location of the device, which may be null in rare
-         * cases when a location is not available.
+         위치를 사용할 수 없는 드문 경우에 null일 수 있는 장치의 가장 최근의 가장 좋은 위치를 가져옵니다.
          */
         try {
             if (locationPermissionGranted) {
@@ -148,8 +261,8 @@ class MainActivity : AppCompatActivity(), OnMapReadyCallback {
                         if (lastKnownLocation != null) {
                             map?.moveCamera(
                                 CameraUpdateFactory.newLatLngZoom(
-                                LatLng(lastKnownLocation!!.latitude,
-                                    lastKnownLocation!!.longitude), DEFAULT_ZOOM.toFloat()))
+                                    LatLng(lastKnownLocation!!.latitude,
+                                        lastKnownLocation!!.longitude), DEFAULT_ZOOM.toFloat()))
                         }
                     } else {
                         Log.d(TAG, "Current location is null. Using defaults.")
@@ -265,7 +378,7 @@ class MainActivity : AppCompatActivity(), OnMapReadyCallback {
             // Add a default marker, because the user hasn't selected a place.
             map?.addMarker(
                 MarkerOptions()
-                .position(defaultLocation)
+                    .position(defaultLocation)
             )
 
             // Prompt the user for permission.
