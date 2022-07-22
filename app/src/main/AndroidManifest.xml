@@ -23,10 +23,10 @@
             android:name="com.google.android.geo.API_KEY"
             android:value="AIzaSyCoZMb8geWWyD3O7FhxqJuthJxbcSMGolw" />
 
-        <receiver android:name=".GeofenceReceiver"/>
+        <receiver android:name=".receiver.GeofenceReceiver"/>
 
         <activity
-            android:name=".MainActivity"
+            android:name=".ui.MainActivity"
             android:exported="true">
             <intent-filter>
                 <action android:name="android.intent.action.MAIN" />
